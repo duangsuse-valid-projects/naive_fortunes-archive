@@ -39,7 +39,8 @@ After=network.target
 [Service]
 ExecStart=${HOME}/.cargo/bin/naivefortunes ${HOME}/fort.json
 Restart=always
-RestartSec=0" > /lib/systemd/system/fort.service
+RestartSec=0
+Environment=ROCKET_ENV=production" > /lib/systemd/system/fort.service
        echo "done. use systemctl start fort.service to start."
     fi
 else

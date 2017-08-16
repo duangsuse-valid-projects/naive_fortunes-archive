@@ -1,7 +1,7 @@
 [package]
 name = "naivefortunes"
 description = "A naive fortune http API server"
-version = "0.0.8"
+version = "0.0.9"
 authors = ["duangsuse <fedora-opensuse@outlook.com>"]
 
 [dependencies]

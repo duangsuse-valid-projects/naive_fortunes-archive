@@ -34,7 +34,30 @@ fn rand_body(state: State<Vec<Fortune>>) -> String {
     let data_len = data.len();
     format!("{}", &data[get_random_idx(data_len)].content)
 }
+#[get("/author")] //just fetch random author
+fn rand_author(state: State<Vec<Fortune>>) -> String {
+    let data = state.to_vec();
+    let data_len = data.len();
+    if let Some(ref a) = data[get_random_idx(data_len)].author {
+        format!("{}", a)
+    } else {
+        String::new()
+    }
+}
 
+#[get("/findfort/<author>")]
+fn find_fort(author: String, state: State<Vec<Fortune>>) -> String {
+    let data = state.to_vec();
+    let mut ret = String::new();
+    for i in data {
+        if let Some(ref a) = i.author {
+            if &author == a {
+                ret += &format!("{}\n", i.content);
+            }
+        }
+    }
+    ret
+}
 #[get("/fortune")] //get formated fortune
 fn fortune(state: State<Vec<Fortune>>) -> String {
     let data = state.to_vec();
@@ -78,7 +101,10 @@ fn main() {
     let deserialized: Vec<Fortune> = serde_json::from_str(&file_str).unwrap();
     rocket::ignite()
         .catch(errors![not_found])
-        .mount("/", routes![rand_body, fortune, redirect])
+        .mount(
+            "/",
+            routes![rand_body, rand_author, fortune, find_fort, redirect],
+        )
         .manage(deserialized)
         .launch();
 }
