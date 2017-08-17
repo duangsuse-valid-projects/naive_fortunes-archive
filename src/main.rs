@@ -28,6 +28,14 @@ fn get_random_idx(len: usize) -> usize {
     Rng::gen_range(&mut rand::thread_rng(), 0, len)
 }
 
+fn try_rand_author(data: Vec<Fortune>) -> String {
+    if let Some(ref a) = data[get_random_idx(data.len())].author {
+        format!("{}", a)
+    } else {
+        try_rand_author(data.to_owned())
+    }
+
+}
 #[get("/body")] //just fetch fortune content
 fn rand_body(state: State<Vec<Fortune>>) -> String {
     let data = state.to_vec();
@@ -37,12 +45,7 @@ fn rand_body(state: State<Vec<Fortune>>) -> String {
 #[get("/author")] //just fetch random author
 fn rand_author(state: State<Vec<Fortune>>) -> String {
     let data = state.to_vec();
-    let data_len = data.len();
-    if let Some(ref a) = data[get_random_idx(data_len)].author {
-        format!("{}", a)
-    } else {
-        String::new()
-    }
+    try_rand_author(data)
 }
 
 #[get("/findfort/<author>")]
@@ -52,12 +55,45 @@ fn find_fort(author: String, state: State<Vec<Fortune>>) -> String {
     for i in data {
         if let Some(ref a) = i.author {
             if &author == a {
-                ret += &format!("{}\n", i.content);
+                if let Some(ref l) = i.link {
+                    ret += &format!("[{}]({})\n", i.content, l);
+                } else {
+                    ret += &format!("{}\n", i.content);
+                }
             }
         }
     }
     ret
 }
+
+#[get("/findfort")]
+fn get_all(state: State<Vec<Fortune>>) -> String {
+    let data = state.to_vec();
+    let mut ret = String::new();
+    for i in data {
+        if let Some(ref l) = i.link {
+            ret += &format!("[{}]({})\n", i.content, l);
+        } else {
+            ret += &format!("{}\n", i.content);
+        }
+    }
+    ret
+}
+
+#[get("/authors")]
+fn get_all_authors(state: State<Vec<Fortune>>) -> String {
+    let data = state.to_vec();
+    let mut ret = String::new();
+    for i in data {
+        if let Some(ref a) = i.author {
+            ret += &format!("{}\n", a);
+        }
+    }
+    ret
+}
+
+
+
 #[get("/fortune")] //get formated fortune
 fn fortune(state: State<Vec<Fortune>>) -> String {
     let data = state.to_vec();
@@ -85,7 +121,11 @@ fn redirect() -> Redirect {
 
 #[error(404)]
 fn not_found(req: &Request) -> String {
-    format!("{} {} ,这是最吼的. #(滑稽)", req.method(), req.uri())
+    format!(
+        "{} {}::404,这是最吼的. #(滑稽)",
+        req.method(),
+        req.uri()
+    )
 }
 
 fn main() {
@@ -103,7 +143,15 @@ fn main() {
         .catch(errors![not_found])
         .mount(
             "/",
-            routes![rand_body, rand_author, fortune, find_fort, redirect],
+            routes![
+                rand_body,
+                rand_author,
+                fortune,
+                find_fort,
+                get_all,
+                get_all_authors,
+                redirect,
+            ],
         )
         .manage(deserialized)
         .launch();

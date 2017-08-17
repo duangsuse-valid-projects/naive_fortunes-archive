@@ -23,11 +23,13 @@ if test -e ./src ;then
         fi 
         echo "wget exited with"$?
         echo "preparing cron... (root access needed) (PLEASE INSTALL cronie !!!)"
+        read -p "please install cronie now, or press Ctrl+C"
         sudo echo "#!/bin/sh" > /etc/cron.daily/fortnaive
-        sudo echo "wget "$FORT_URL" -O "~/fort.json >> /etc/cron.daily/fortnaive
+        sudo echo "wget "$FORT_URL" -O "${HOME}/fort.json >> /etc/cron.daily/fortnaive
         sudo chmod +x /etc/cron.daily/fortnaive
         sudo echo "24 * * * * root systemctl restart fort.service" >> /etc/cron.d/0daily
         sudo echo "24 * * * * root run-parts /etc/cron.daily" >> /etc/cron.d/0daily
+        sudo crontab /etc/cron.d/0daily
         cfgfile=`cat /etc/cron.daily/fortnaive`
         echo "${cfgfile} writed"
         echo "preparing systemd service (this will panic when running on non-systemd distro)"
