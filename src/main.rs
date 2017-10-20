@@ -8,14 +8,30 @@ extern crate rand;
 
 #[macro_use]
 extern crate serde_derive;
+#[macro_use]
+extern crate lazy_static;
 
 use std::env::args;
 use std::fs::File;
 use std::io::Read;
-use rocket::State;
 use rocket::Request;
 use rocket::response::Redirect;
 use rand::Rng;
+
+lazy_static! {
+    static ref FORTUNE_DATA: Vec<Fortune> = {
+    let mut prog_args = args();
+    prog_args.next().unwrap();
+    let file_loc = prog_args.next().unwrap_or_else(
+        || panic!("argument required"),
+    );
+    let mut file_str = String::new();
+    if let Ok(mut f) = File::open(file_loc) {
+        f.read_to_string(&mut file_str).unwrap();
+    }
+        serde_json::from_str(&file_str).unwrap()
+    };
+}
 
 #[derive(Serialize, Deserialize, Clone, Debug)]
 struct Fortune {
@@ -28,31 +44,32 @@ fn get_random_idx(len: usize) -> usize {
     Rng::gen_range(&mut rand::thread_rng(), 0, len)
 }
 
-fn try_rand_author(data: Vec<Fortune>) -> String {
-    if let Some(ref a) = data[get_random_idx(data.len())].author {
+fn try_rand_author() -> String {
+    if let Some(ref a) = FORTUNE_DATA[get_random_idx(FORTUNE_DATA.len())].author {
         format!("{}", a)
     } else {
-        try_rand_author(data.to_owned())
+        try_rand_author()
     }
+}
 
+#[get("/body")] //fetch fortune content only
+fn rand_body() -> String {
+    let fortune_data_len = FORTUNE_DATA.len();
+    format!(
+        "{}",
+        &FORTUNE_DATA[get_random_idx(fortune_data_len)].content
+    )
 }
-#[get("/body")] //just fetch fortune content
-fn rand_body(state: State<Vec<Fortune>>) -> String {
-    let data = state.to_vec();
-    let data_len = data.len();
-    format!("{}", &data[get_random_idx(data_len)].content)
-}
-#[get("/author")] //just fetch random author
-fn rand_author(state: State<Vec<Fortune>>) -> String {
-    let data = state.to_vec();
-    try_rand_author(data)
+
+#[get("/author")] //fetch random author only
+fn rand_author() -> String {
+    try_rand_author()
 }
 
 #[get("/findfort/<author>")]
-fn find_fort(author: String, state: State<Vec<Fortune>>) -> String {
-    let data = state.to_vec();
+fn find_fort(author: String) -> String {
     let mut ret = String::new();
-    for i in data {
+    for i in FORTUNE_DATA.iter() {
         if let Some(ref a) = i.author {
             if &author == a {
                 if let Some(ref l) = i.link {
@@ -67,10 +84,9 @@ fn find_fort(author: String, state: State<Vec<Fortune>>) -> String {
 }
 
 #[get("/findfort")]
-fn get_all(state: State<Vec<Fortune>>) -> String {
-    let data = state.to_vec();
+fn get_all() -> String {
     let mut ret = String::new();
-    for i in data {
+    for i in FORTUNE_DATA.iter() {
         if let Some(ref l) = i.link {
             ret += &format!("[{}]({})\n", i.content, l);
         } else {
@@ -81,10 +97,9 @@ fn get_all(state: State<Vec<Fortune>>) -> String {
 }
 
 #[get("/authors")]
-fn get_all_authors(state: State<Vec<Fortune>>) -> String {
-    let data = state.to_vec();
+fn get_all_authors() -> String {
     let mut ret = String::new();
-    for i in data {
+    for i in FORTUNE_DATA.iter() {
         if let Some(ref a) = i.author {
             ret += &format!("{}\n", a);
         }
@@ -92,24 +107,21 @@ fn get_all_authors(state: State<Vec<Fortune>>) -> String {
     ret
 }
 
-
-
 #[get("/fortune")] //get formated fortune
-fn fortune(state: State<Vec<Fortune>>) -> String {
-    let data = state.to_vec();
-    let data_len = data.len();
-    let data_selected = &data[get_random_idx(data_len)];
-    if let Some(ref l) = data_selected.link {
-        if let Some(ref a) = data_selected.author {
-            format!("[{} --{}]({})", data_selected.content, a, l)
+fn fortune() -> String {
+    let fortune_data_len = FORTUNE_DATA.len();
+    let fortune_data_selected = &FORTUNE_DATA[get_random_idx(fortune_data_len)];
+    if let Some(ref l) = fortune_data_selected.link {
+        if let Some(ref a) = fortune_data_selected.author {
+            format!("[{} --{}]({})", fortune_data_selected.content, a, l)
         } else {
-            format!("[{}]({})", data_selected.content, l)
+            format!("[{}]({})", fortune_data_selected.content, l)
         }
     } else {
-        if let Some(ref a) = data_selected.author {
-            format!("{} --{}", data_selected.content, a)
+        if let Some(ref a) = fortune_data_selected.author {
+            format!("{} --{}", fortune_data_selected.content, a)
         } else {
-            format!("{}", data_selected.content)
+            format!("{}", fortune_data_selected.content)
         }
     }
 }
@@ -122,23 +134,13 @@ fn redirect() -> Redirect {
 #[error(404)]
 fn not_found(req: &Request) -> String {
     format!(
-        "{} {}::404,这是最吼的. #(滑稽)",
+        "{} {}::404,这是最吼的. :frog:",
         req.method(),
         req.uri()
     )
 }
 
 fn main() {
-    let mut prog_args = args();
-    prog_args.next().unwrap();
-    let file_loc = prog_args.next().unwrap_or_else(
-        || panic!("argument required"),
-    );
-    let mut file_str = String::new();
-    if let Ok(mut f) = File::open(file_loc) {
-        f.read_to_string(&mut file_str).unwrap();
-    }
-    let deserialized: Vec<Fortune> = serde_json::from_str(&file_str).unwrap();
     rocket::ignite()
         .catch(errors![not_found])
         .mount(
@@ -153,6 +155,5 @@ fn main() {
                 redirect,
             ],
         )
-        .manage(deserialized)
         .launch();
 }
